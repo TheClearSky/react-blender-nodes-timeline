@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.0.2 — 2026-09-06
+
+No code changes since 0.0.1 (`TIMELINE_PLUGIN_VERSION` follows the version).
+
+- First release published by CI: `npm publish --provenance` under OIDC trusted
+  publishing from `library-deploy.yml`, so the registry carries a provenance
+  attestation linking the tarball to the exact commit and workflow run. 0.0.1
+  was published by hand once, only to create the package on the registry — npm
+  can register a trusted publisher only for a package that already exists.
+
 ## 0.0.1 — 2026-09-06
 
 Initial version. AGPL-3.0-only.
