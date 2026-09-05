@@ -1,0 +1,253 @@
+/* Stylesheet for @theclearsky/react-blender-nodes-timeline. Imported by
+   src/index.ts so the library build always emits dist/style.css — the
+   exports["./style.css"] target checked by scripts/check-dist-loads.ts.
+   Plain dark CSS in the host's token look (plan §6): #1d1d1d → #282828 →
+   #303030 → #444444 hierarchy, #e6e6e6 text. No tailwind. */
+
+.rbnt-timeline {
+  display: flex;
+  flex-direction: column;
+  background: #1d1d1d;
+  color: #e6e6e6;
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  border: 1px solid #444444;
+  border-radius: 6px;
+  overflow: hidden;
+  outline: none;
+}
+.rbnt-timeline:focus-visible {
+  border-color: #656565;
+}
+
+.rbnt-tl-toolbar,
+.rbnt-tl-point-panel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: #282828;
+  border-bottom: 1px solid #444444;
+  flex-wrap: wrap;
+}
+
+/* Keep the transport reachable while a tall dock scrolls (§6 sticky
+   inspiration — the ruler itself cannot stick without restructuring the
+   x-scroll container; recorded as backlog). */
+.rbnt-tl-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.rbnt-tl-toolbar-spacer {
+  flex: 1;
+}
+
+.rbnt-tl-button {
+  background: #303030;
+  color: #e6e6e6;
+  border: 1px solid #444444;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.rbnt-tl-button:hover:not(:disabled) {
+  background: #3a3a3a;
+}
+.rbnt-tl-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.rbnt-tl-button[data-active='true'] {
+  background: #4a3a12;
+  border-color: #f59e0b;
+  color: #f59e0b;
+}
+.rbnt-tl-button-small {
+  padding: 1px 6px;
+  font-size: 11px;
+}
+.rbnt-tl-danger {
+  color: #fb7185;
+  border-color: #6b2d38;
+}
+.rbnt-tl-danger:hover:not(:disabled) {
+  background: #3a2228;
+}
+
+.rbnt-tl-readout {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: #b8b8b8;
+  padding: 0 6px;
+  min-width: 150px;
+}
+
+.rbnt-tl-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #979797;
+}
+
+.rbnt-tl-number,
+.rbnt-tl-name,
+.rbnt-tl-select {
+  background: #1d1d1d;
+  color: #e6e6e6;
+  border: 1px solid #444444;
+  border-radius: 4px;
+  padding: 2px 5px;
+  font-size: 12px;
+  font-family: inherit;
+}
+.rbnt-tl-number:focus,
+.rbnt-tl-name:focus,
+.rbnt-tl-select:focus {
+  outline: none;
+  border-color: #797979;
+}
+
+.rbnt-tl-point-label {
+  color: #979797;
+  font-size: 11px;
+  min-width: 110px;
+}
+
+.rbnt-tl-body {
+  display: flex;
+  align-items: stretch;
+  min-height: 60px;
+}
+
+.rbnt-tl-headers {
+  width: 176px;
+  flex-shrink: 0;
+  background: #232323;
+  border-right: 1px solid #444444;
+}
+
+.rbnt-tl-ruler-spacer {
+  border-bottom: 1px solid #444444;
+  box-sizing: border-box;
+}
+
+.rbnt-tl-lane-header {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-bottom: 1px solid #383838;
+}
+.rbnt-tl-lane-header-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.rbnt-tl-color {
+  width: 22px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid #444444;
+  border-radius: 3px;
+  background: none;
+}
+.rbnt-tl-name {
+  flex: 1;
+  min-width: 0;
+}
+.rbnt-tl-dim {
+  color: #797979;
+}
+
+.rbnt-tl-scroll {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  position: relative;
+  background: #1d1d1d;
+}
+
+.rbnt-tl-content {
+  position: relative;
+}
+
+.rbnt-tl-ruler {
+  position: relative;
+  height: 30px;
+  box-sizing: border-box;
+  border-bottom: 1px solid #444444;
+  background: #282828;
+  cursor: ew-resize;
+  touch-action: none;
+  user-select: none;
+}
+.rbnt-tl-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid #444444;
+  pointer-events: none;
+}
+.rbnt-tl-tick span {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  font-size: 10px;
+  color: #979797;
+  font-family: ui-monospace, monospace;
+}
+
+/* No border here: the separator is drawn INSIDE the canvas so header
+   (border-box, 110px incl. border) and lane rows stay exactly equal —
+   a border made lanes 111px and drifted 1px per row (review UI-5). */
+.rbnt-tl-lane {
+  position: relative;
+  box-sizing: border-box;
+}
+.rbnt-tl-lane-canvas {
+  display: block;
+  background: #212121;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.rbnt-tl-empty {
+  padding: 24px;
+  color: #797979;
+}
+
+.rbnt-tl-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px solid #f59e0b;
+  pointer-events: none;
+}
+
+/* The in-node curve picker (plan §7) — rendered by the host inside a
+   Timeline Curve node via the app's InputComponentRegistry. */
+.rbnt-tl-curve-picker {
+  background: #1d1d1d;
+  color: #e6e6e6;
+  border: 1px solid #444444;
+  border-radius: 4px;
+  padding: 2px 5px;
+  font-size: 12px;
+  font-family: system-ui, sans-serif;
+  max-width: 100%;
+}
+.rbnt-tl-curve-picker:focus {
+  outline: none;
+  border-color: #797979;
+}
+.rbnt-tl-curve-picker[data-missing='true'] {
+  border-color: #fb7185;
+  color: #fb7185;
+}

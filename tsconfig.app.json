@@ -1,0 +1,34 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["vite/client"],
+    "baseUrl": ".",
+    /* `@/*` ONLY. DELIBERATELY no `paths` entry for `zod` (or the host
+       peer): a tsconfig path makes API Extractor treat that package as
+       LOCAL and rewrite/inline it in the rolled dist/index.d.ts — T1
+       briefly shipped `import { z } from '../../node_modules/zod'` until
+       check-dist-types caught it. Externals must resolve through
+       node_modules so the rolled d.ts keeps bare specifiers (same rule and
+       rationale as the codegen repo's tsconfig.app.json). If the two-zod
+       unification trap (sound repo S0 incident) reappears at T4 when host
+       types join, fix it with a SEPARATE dts-only tsconfig — never by
+       re-adding paths here. */
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  },
+  "include": ["src", "playground"]
+}

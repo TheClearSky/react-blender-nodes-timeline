@@ -1,0 +1,73 @@
+{
+  "name": "@theclearsky/react-blender-nodes-timeline",
+  "version": "0.0.1",
+  "type": "module",
+  "author": "Deepak Prasad <TheClearSky@github.com>",
+  "license": "AGPL-3.0-only",
+  "description": "Timeline plugin for @theclearsky/react-blender-nodes — multipart named curves with per-side interpolation, a drag/play transport that drives AudioParams sample-accurately, and a curve node factory.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TheClearSky/react-blender-nodes-timeline.git"
+  },
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
+  "main": "./dist/react-blender-nodes-timeline.cjs",
+  "module": "./dist/react-blender-nodes-timeline.es.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/react-blender-nodes-timeline.es.js",
+      "require": "./dist/react-blender-nodes-timeline.cjs"
+    },
+    "./style.css": "./dist/style.css",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build && node --experimental-strip-types scripts/check-dist-types.ts && node --experimental-strip-types scripts/check-dist-loads.ts",
+    "type-check": "tsc -b",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "pretty": "prettier --write .",
+    "pretty:check": "prettier --check ."
+  },
+  "peerDependencies": {
+    "@theclearsky/react-blender-nodes": ">=0.0.14 <1",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "zod": "^4.1.5"
+  },
+  "peerDependenciesMeta": {
+    "@theclearsky/react-blender-nodes": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@theclearsky/react-blender-nodes": "^0.0.14",
+    "@types/node": "^24.3.1",
+    "@types/react": "^19.1.12",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.0.2",
+    "prettier": "^3.6.2",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "typescript": "~5.9.2",
+    "vite": "^7.1.4",
+    "vite-plugin-dts": "^4.5.4",
+    "vitest": "^3.2.4",
+    "zod": "^4.1.5"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
+  },
+  "prettier": {
+    "singleQuote": true,
+    "trailingComma": "all"
+  }
+}
