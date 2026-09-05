@@ -1,20 +1,6 @@
 # Changelog
 
-## Unreleased
-
-- Write guards now place every post-curve event STRICTLY after the curve's
-  engine-computed end (the Chrome/Tone stack treats curve windows as closed
-  on the right), and cancels keep `cancelTime` as a surviving closed edge.
-- New `scheduleHeadroomSeconds` transport option (default 0.08): passes
-  anchor slightly in the future so large write bursts can never be
-  past-dated (Chrome shifts past-dated curve windows forward, colliding
-  with later events of the same pass). The playhead holds at the anchor
-  during the headroom.
-- `play()` now opens with a single startup cancel sweep (a no-op when
-  genuinely parked) so a coalesced edit-flush racing play in the same tick
-  cannot leave two live passes; each pass also snapshots its time mapping.
-
-## 0.0.1 — 2026-08-30 (unpublished)
+## 0.0.1 — 2026-09-06
 
 Initial version. AGPL-3.0-only.
 
@@ -39,5 +25,17 @@ Initial version. AGPL-3.0-only.
 - **Node seam**: `makeTimelineCurveNodeType`, `TimelineCurvePicker`,
   `timelineCurveRefSchema` (+`makeTimelineCurveRef` /
   `parseTimelineCurveRef`).
-- 82 unit tests (interpolation oracles, scheduling call-sequence pins,
+- **Transport hardening** (found by scheduling a ~500-event score):
+  - Write guards place every post-curve event STRICTLY after the curve's
+    engine-computed end (the Chrome/Tone stack treats curve windows as closed
+    on the right), and cancels keep `cancelTime` as a surviving closed edge.
+  - New `scheduleHeadroomSeconds` transport option (default 0.08): passes
+    anchor slightly in the future so large write bursts can never be
+    past-dated (Chrome shifts past-dated curve windows forward, colliding
+    with later events of the same pass). The playhead holds at the anchor
+    during the headroom.
+  - `play()` opens with a single startup cancel sweep (a no-op when genuinely
+    parked) so a coalesced edit-flush racing play in the same tick cannot
+    leave two live passes; each pass also snapshots its time mapping.
+- 98 unit tests (interpolation oracles, scheduling call-sequence pins,
   transport state machine, registry lifecycle, editor edit helpers).
