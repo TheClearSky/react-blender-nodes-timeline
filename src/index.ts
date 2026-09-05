@@ -8,7 +8,7 @@
  */
 import './style.css';
 
-export const TIMELINE_PLUGIN_VERSION = '0.0.1';
+export const TIMELINE_PLUGIN_VERSION = '0.0.2';
 
 export { MIN_POINT_DELTA_SECONDS, sideInterps } from './model/types';
 export type {

@@ -97,20 +97,11 @@ jobs:
             echo "$NAME@$VERSION is new — publishing."
           fi
 
+      # The package's trusted publisher (this repo / this workflow file /
+      # environment `npm`) is registered on npmjs.com and token publishing is
+      # disallowed there, so this step is the ONLY publish path. 0.0.1 was
+      # published by hand once to create the package — npm cannot register a
+      # trusted publisher for a name that does not exist yet.
       - name: Publish to npm (OIDC trusted publishing)
         if: steps.published.outputs.exists == 'false'
         run: npm publish --provenance --access public
-
-      # FIRST PUBLISH ONLY — use this INSTEAD of the step above if npmjs.com
-      # will not let you register a trusted publisher for a package name that
-      # does not exist yet. Create a granular access token (publish-only,
-      # scoped to @theclearsky), store it as the secret `NPM_TOKEN` in the
-      # `npm` environment, publish once, then DELETE the token, register the
-      # trusted publisher on the now-existing package, and switch back to the
-      # OIDC step. Never leave a long-lived token wired into CI.
-      #
-      # - name: Publish to npm (one-time token bootstrap)
-      #   if: steps.published.outputs.exists == 'false'
-      #   run: npm publish --access public
-      #   env:
-      #     NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

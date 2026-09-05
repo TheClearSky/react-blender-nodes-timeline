@@ -1,6 +1,6 @@
 {
   "name": "@theclearsky/react-blender-nodes-timeline",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "type": "module",
   "author": "Deepak Prasad <TheClearSky@github.com>",
   "license": "AGPL-3.0-only",
