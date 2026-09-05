@@ -1,0 +1,116 @@
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+# Single-checkout CI. The host peer (`@theclearsky/react-blender-nodes`) is an
+# ordinary registry dependency (>= 0.0.14), so `npm ci` resolves everything
+# from npm — no sibling checkout, no bootstrap. A pull request runs the build
+# job only; a push to `main` also publishes.
+
+jobs:
+  build-library:
+    runs-on: ubuntu-22.04
+    permissions:
+      # No `id-token: write` here on purpose: this job never publishes, so it
+      # never needs the OIDC token.
+      contents: read
+    concurrency:
+      # Its own group (not shared with any other workflow in this repo), and a
+      # superseded PR build is cancelled rather than queued.
+      group: ci-build-${{ github.ref }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24.x'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      # `tsc -b`, the Vite library build, then the two artifact gates:
+      # `check-dist-types` (rolled .d.ts is self-contained) and
+      # `check-dist-loads` (every manifest target exists and both bundles
+      # actually evaluate).
+      - name: Build library
+        run: npm run build
+
+  deploy-library:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: build-library
+    runs-on: ubuntu-22.04
+    environment:
+      name: npm
+    permissions:
+      contents: read
+      # Required by `npm publish --provenance`: npm exchanges this OIDC token
+      # with Sigstore to attest the build (trusted publishing — no token).
+      id-token: write
+    concurrency:
+      # A publish must never race another publish, and must never be cancelled
+      # half-way. Its own group so a queued deploy does not block builds.
+      group: deploy-npm-${{ github.ref }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24.x'
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build library
+        run: npm run build
+
+      # Every push to `main` reaches this job. Publishing an existing version
+      # is an error on the registry, so a doc-only push without a version bump
+      # must skip the publish rather than go red.
+      - name: Is this version already published?
+        id: published
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "$NAME@$VERSION is already on the registry — nothing to publish."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "$NAME@$VERSION is new — publishing."
+          fi
+
+      - name: Publish to npm (OIDC trusted publishing)
+        if: steps.published.outputs.exists == 'false'
+        run: npm publish --provenance --access public
+
+      # FIRST PUBLISH ONLY — use this INSTEAD of the step above if npmjs.com
+      # will not let you register a trusted publisher for a package name that
+      # does not exist yet. Create a granular access token (publish-only,
+      # scoped to @theclearsky), store it as the secret `NPM_TOKEN` in the
+      # `npm` environment, publish once, then DELETE the token, register the
+      # trusted publisher on the now-existing package, and switch back to the
+      # OIDC step. Never leave a long-lived token wired into CI.
+      #
+      # - name: Publish to npm (one-time token bootstrap)
+      #   if: steps.published.outputs.exists == 'false'
+      #   run: npm publish --access public
+      #   env:
+      #     NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
