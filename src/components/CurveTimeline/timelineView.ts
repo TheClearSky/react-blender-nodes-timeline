@@ -1,14 +1,17 @@
 /**
  * Pure view math for the editor (plan §6): px-per-second time scale with
- * the §8 clamp [10, 2000], fit-to-view, time↔pixel mapping, "nice" ruler
- * steps, and per-lane value↔y mapping with auto-fit ranges (y-range is a
- * VIEW property — Q-TL-5 keeps document values absolute).
+ * the §8 clamp [10, 2000], fit-to-view, time↔pixel mapping, and per-lane
+ * value↔y mapping with auto-fit ranges (y-range is a VIEW property —
+ * Q-TL-5 keeps document values absolute). The ruler and grid are musical:
+ * see tempo.ts and gridLines.ts.
  */
 import type { TimelineCurve } from '../../model/types';
 
 export const MIN_TIME_SCALE_PX_PER_SECOND = 10;
 export const MAX_TIME_SCALE_PX_PER_SECOND = 2000;
-export const LANE_HEIGHT_PX = 110;
+/** Default lane height. Was 110; the user asked for 1.5x (2026-09-18).
+ *  A lane can be taller still — fullscreen passes its own height. */
+export const LANE_HEIGHT_PX = 165;
 export const RULER_HEIGHT_PX = 30;
 
 export function clampTimeScale(pxPerSecond: number): number {
@@ -34,21 +37,6 @@ export function timeToPixel(timeSeconds: number, pxPerSecond: number): number {
 
 export function pixelToTime(pixelX: number, pxPerSecond: number): number {
   return pixelX / pxPerSecond;
-}
-
-const RULER_STEP_CHOICES_SECONDS = [
-  0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60,
-] as const;
-const MIN_LABEL_SPACING_PX = 70;
-
-/** Smallest "nice" step whose labels stay ≥ ~70 px apart. */
-export function rulerStepSeconds(pxPerSecond: number): number {
-  for (const step of RULER_STEP_CHOICES_SECONDS) {
-    if (step * pxPerSecond >= MIN_LABEL_SPACING_PX) {
-      return step;
-    }
-  }
-  return RULER_STEP_CHOICES_SECONDS[RULER_STEP_CHOICES_SECONDS.length - 1];
 }
 
 export type LaneValueRange = {

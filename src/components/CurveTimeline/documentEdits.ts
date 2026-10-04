@@ -7,13 +7,23 @@
  * store.setDocument(next) + transport.notifyDocumentChanged() with the
  * results.
  */
-import { MIN_POINT_DELTA_SECONDS } from '../../model/types';
+import { evaluateCurve } from '../../model/evaluate';
+import {
+  DEFAULT_TEMPO,
+  MAX_BEATS_PER_BAR,
+  MAX_BPM,
+  MIN_BPM,
+  MIN_POINT_DELTA_SECONDS,
+} from '../../model/types';
 import type {
+  CurveDisplay,
   CurvePoint,
   SideInterp,
   TimelineCurve,
   TimelineDocument,
+  ValueGrid,
 } from '../../model/types';
+import { cellStarts } from './tempo';
 
 export const MIN_DURATION_SECONDS = 0.1;
 /** Matches the schema ceiling — see timelineDocumentSchema (review UI-3). */
@@ -275,4 +285,255 @@ export function hasWrapMismatch(
     return false;
   }
   return curve.points[0].v !== curve.points[curve.points.length - 1].v;
+}
+
+// ── tempo (plan timeline-midi-mode.md, Q-M2 A) ──────────────────────────
+
+/** Why a tempo edit was refused — shown to the user as is. */
+export type TempoRefusal = { readonly refused: string };
+
+/**
+ * Change the BPM.
+ *
+ * - LOCKED duration: only the tempo changes. Every point and the duration
+ *   keep their seconds, so the sound is identical; the grid moves.
+ * - UNLOCKED: the music keeps its BEATS — every time and the duration are
+ *   multiplied by old/new — so it plays faster or slower.
+ *
+ * Refused (nothing changes) when the rescale would break the document: two
+ * points closer than 1 ms, or a duration outside the editor's limits.
+ */
+export function setTempoBpm(
+  document: TimelineDocument,
+  requestedBpm: number,
+): TimelineDocument | TempoRefusal {
+  if (!Number.isFinite(requestedBpm)) return document;
+  const bpm = Math.min(
+    Math.max(Math.round(requestedBpm * 10) / 10, MIN_BPM),
+    MAX_BPM,
+  );
+  const tempo = document.tempo ?? DEFAULT_TEMPO;
+  if (bpm === tempo.bpm) return document;
+  const nextTempo = { ...tempo, bpm };
+  if (document.lockDuration === true) {
+    return { ...document, tempo: nextTempo };
+  }
+  const factor = tempo.bpm / bpm;
+  const durationSec = document.durationSec * factor;
+  if (durationSec > MAX_DURATION_SECONDS) {
+    return {
+      refused: `At ${bpm} BPM the timeline would last ${Math.round(durationSec)} s — longer than the ${MAX_DURATION_SECONDS} s limit. Lock the duration to change only the grid.`,
+    };
+  }
+  if (durationSec < MIN_DURATION_SECONDS) {
+    return {
+      refused: `At ${bpm} BPM the timeline would be shorter than ${MIN_DURATION_SECONDS} s.`,
+    };
+  }
+  for (const curve of document.curves) {
+    for (let index = 1; index < curve.points.length; index += 1) {
+      const gap = (curve.points[index].t - curve.points[index - 1].t) * factor;
+      if (gap < MIN_POINT_DELTA_SECONDS) {
+        return {
+          refused: `At ${bpm} BPM two points of "${curve.name}" would be closer than 1 ms.`,
+        };
+      }
+    }
+  }
+  return {
+    ...document,
+    // The grid's start moves with the music it marks.
+    tempo:
+      tempo.offsetSec === undefined
+        ? nextTempo
+        : { ...nextTempo, offsetSec: tempo.offsetSec * factor },
+    durationSec,
+    curves: document.curves.map((curve) => ({
+      ...curve,
+      points: curve.points.map((point) => ({ ...point, t: point.t * factor })),
+    })),
+  };
+}
+
+export function isTempoRefusal(
+  result: TimelineDocument | TempoRefusal,
+): result is TempoRefusal {
+  return 'refused' in result;
+}
+
+/** Beats in a bar — only the grid and the ruler change. */
+export function setBeatsPerBar(
+  document: TimelineDocument,
+  requested: number,
+): TimelineDocument {
+  if (!Number.isFinite(requested)) return document;
+  const beatsPerBar = Math.min(
+    Math.max(Math.round(requested), 1),
+    MAX_BEATS_PER_BAR,
+  );
+  const tempo = document.tempo ?? DEFAULT_TEMPO;
+  if (beatsPerBar === tempo.beatsPerBar) return document;
+  return { ...document, tempo: { ...tempo, beatsPerBar } };
+}
+
+export function setLockDuration(
+  document: TimelineDocument,
+  lockDuration: boolean,
+): TimelineDocument {
+  return { ...document, lockDuration };
+}
+
+// ── bars (plan timeline-midi-mode.md, Q-M1 A) ───────────────────────────
+
+/** More cells than this and a lane is not a bar editor any more. */
+export const MAX_BAR_CELLS = 2048;
+
+/** True when every segment holds its value (so bars show it faithfully). */
+export function isAllSteps(curve: TimelineCurve): boolean {
+  return curve.points.every(
+    (point, index) =>
+      index === curve.points.length - 1 || point.rightInterp === 'step',
+  );
+}
+
+export function setCurveDisplay(
+  document: TimelineDocument,
+  curveId: string,
+  display: CurveDisplay,
+): TimelineDocument {
+  return replaceCurve(document, curveId, (curve) => ({ ...curve, display }));
+}
+
+/**
+ * Show a curve as bars. An all-step curve keeps its points; any other curve
+ * is RESAMPLED to one step per grid cell (its value at the cell start) — the
+ * caller asks first, because the smooth shape is replaced. Returns null when
+ * the grid would make more than MAX_BAR_CELLS cells.
+ */
+export function convertCurveToBars(
+  document: TimelineDocument,
+  curveId: string,
+  cellSec: number,
+  originSec = 0,
+): TimelineDocument | null {
+  const curve = document.curves.find((candidate) => candidate.id === curveId);
+  if (curve === undefined || !(cellSec > 0)) return null;
+  if (isAllSteps(curve)) {
+    return setCurveDisplay(document, curveId, 'bars');
+  }
+  if (document.durationSec / cellSec > MAX_BAR_CELLS) return null;
+  const points: CurvePoint[] = cellStarts(
+    document.durationSec,
+    cellSec,
+    originSec,
+    MIN_POINT_DELTA_SECONDS,
+  ).map((t) => ({
+    t,
+    v: evaluateCurve(curve, t),
+    leftInterp: 'step',
+    rightInterp: 'step',
+  }));
+  return replaceCurve(document, curveId, (target) => ({
+    ...target,
+    points,
+    display: 'bars',
+  }));
+}
+
+/**
+ * Set the bar under `timeSeconds` to `value`: the grid cell containing it
+ * holds `value` from its start to its end, and what came after the cell is
+ * kept (a point at the cell's end carries the old value on). Points inside
+ * the cell — left by a finer grid — are absorbed.
+ */
+export function setBarValue(
+  document: TimelineDocument,
+  curveId: string,
+  timeSeconds: number,
+  value: number,
+  cellSec: number,
+  originSec = 0,
+): TimelineDocument {
+  const curve = document.curves.find((candidate) => candidate.id === curveId);
+  if (
+    curve === undefined ||
+    !(cellSec > 0) ||
+    !Number.isFinite(value) ||
+    !Number.isFinite(timeSeconds)
+  ) {
+    return document;
+  }
+  const duration = document.durationSec;
+  const time = Math.min(Math.max(timeSeconds, 0), duration);
+  // Cells run from the grid origin; before it, a partial cell starts at 0.
+  let cellIndex = Math.floor((time - originSec) / cellSec + 1e-9);
+  if (originSec + cellIndex * cellSec >= duration - MIN_POINT_DELTA_SECONDS) {
+    cellIndex -= 1;
+  }
+  const cellStart = Math.max(0, originSec + cellIndex * cellSec);
+  const cellEnd = Math.min(originSec + (cellIndex + 1) * cellSec, duration);
+  const gap = MIN_POINT_DELTA_SECONDS;
+  const before = curve.points.filter((point) => point.t <= cellStart - gap);
+  // Never within 1 ms of the new cell-start point, even in a sliver of a
+  // last cell.
+  const after = curve.points.filter(
+    (point) => point.t >= Math.max(cellEnd - gap, cellStart + gap),
+  );
+  const points: CurvePoint[] = [
+    ...before,
+    { t: cellStart, v: value, leftInterp: 'step', rightInterp: 'step' },
+  ];
+  const nextAfter = after[0];
+  const endsAtDuration = cellEnd >= duration - gap;
+  if (
+    !endsAtDuration &&
+    (nextAfter === undefined || nextAfter.t > cellEnd + gap)
+  ) {
+    // Keep what played after this cell.
+    points.push({
+      t: cellEnd,
+      v: evaluateCurve(curve, cellEnd),
+      leftInterp: 'step',
+      rightInterp: 'step',
+    });
+  }
+  points.push(...after);
+  return replaceCurve(document, curveId, (target) => ({ ...target, points }));
+}
+
+// ── grid finder results (plan timeline-grid-finder.md) ──────────────────
+
+/**
+ * Apply a found tempo grid. GRID ONLY: every point and the duration keep
+ * their seconds whatever the lock says — the music is the reference the grid
+ * was fitted to (ruling Q-F1 A).
+ */
+export function setTempoGrid(
+  document: TimelineDocument,
+  grid: { bpm: number; beatsPerBar: number; offsetSec: number },
+): TimelineDocument {
+  const bpm = Math.min(Math.max(grid.bpm, MIN_BPM), MAX_BPM);
+  const beatsPerBar = Math.min(
+    Math.max(Math.round(grid.beatsPerBar), 1),
+    MAX_BEATS_PER_BAR,
+  );
+  const offsetSec = Math.max(0, grid.offsetSec);
+  return {
+    ...document,
+    tempo:
+      offsetSec > 0 ? { bpm, beatsPerBar, offsetSec } : { bpm, beatsPerBar },
+  };
+}
+
+/** Set (or clear, with `undefined`) a lane's horizontal grid. */
+export function setValueGrid(
+  document: TimelineDocument,
+  curveId: string,
+  valueGrid: ValueGrid | undefined,
+): TimelineDocument {
+  return replaceCurve(document, curveId, (curve) => {
+    if (valueGrid !== undefined) return { ...curve, valueGrid };
+    const { valueGrid: _dropped, ...rest } = curve;
+    return rest;
+  });
 }

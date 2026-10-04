@@ -8,14 +8,17 @@
  */
 import './style.css';
 
-export const TIMELINE_PLUGIN_VERSION = '0.0.2';
+export const TIMELINE_PLUGIN_VERSION = '0.0.3';
 
 export { MIN_POINT_DELTA_SECONDS, sideInterps } from './model/types';
 export type {
+  CurveDisplay,
   CurvePoint,
   SideInterp,
   TimelineCurve,
   TimelineDocument,
+  TimelineTempo,
+  ValueGrid,
 } from './model/types';
 export { evaluateCurve } from './model/evaluate';
 export { demoTimelineDocument } from './model/demoDocument';
@@ -58,6 +61,19 @@ export type { TimelineContextValue } from './store/TimelineContext';
 export { TimelineProvider } from './store/TimelineProvider';
 export type { TimelineProviderProps } from './store/TimelineProvider';
 export { CurveTimeline } from './components/CurveTimeline/CurveTimeline';
+// The Grid finder's pure analysis — for apps that want to suggest a tempo or
+// a lane's value grid outside the editor (plan timeline-grid-finder.md).
+export {
+  collectEventTimes,
+  findTempoCandidates,
+  findValueGridCandidates,
+} from './components/CurveTimeline/gridFinder';
+export type {
+  TempoCandidate,
+  ValueGridCandidate,
+  ValueGridShape,
+} from './components/CurveTimeline/gridFinder';
+export type { CurveTimelineProps } from './components/CurveTimeline/CurveTimeline';
 export {
   makeTimelineCurveRef,
   parseTimelineCurveRef,

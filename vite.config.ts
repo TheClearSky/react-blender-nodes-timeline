@@ -2,6 +2,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import dts from 'vite-plugin-dts';
 
 const dirname =
@@ -19,6 +20,10 @@ const dirname =
 export default defineConfig({
   plugins: [
     react(),
+    // Tailwind v4 through its Vite plugin — no config file, no PostCSS file;
+    // tokens live in `src/style.css`, the sheet this build emits as
+    // `dist/style.css` (the host's arrangement).
+    tailwindcss(),
     dts({ rollupTypes: true, tsconfigPath: './tsconfig.app.json' }),
   ],
   resolve: {

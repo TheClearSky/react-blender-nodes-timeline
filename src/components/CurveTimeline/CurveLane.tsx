@@ -5,10 +5,9 @@ import {
 } from 'react';
 import { evaluateCurve } from '../../model/evaluate';
 import type { TimelineCurve } from '../../model/types';
+import { buildValueLines, snapValue, type GridLine } from './gridLines';
 import {
-  LANE_HEIGHT_PX,
   pixelToTime,
-  rulerStepSeconds,
   timeToPixel,
   valueToY,
   yToValue,
@@ -19,6 +18,10 @@ export type CurveLaneProps = {
   curve: TimelineCurve;
   durationSec: number;
   timeScale: number;
+  /** This lane's height in CSS px — the default, or the fullscreen height. */
+  laneHeight: number;
+  /** `pan` leaves every pointer gesture to the scroll container. */
+  mode: 'pan' | 'edit';
   valueRange: LaneValueRange;
   showWrapMismatch: boolean;
   selectedPointIndex: number | null;
@@ -26,7 +29,18 @@ export type CurveLaneProps = {
   /** Returns the new point's index so the press can keep dragging it. */
   onAddPoint(timeSeconds: number, value: number): number | null;
   onMovePoint(pointIndex: number, timeSeconds: number, value: number): void;
+  /** Vertical grid lines to paint (empty when the grid is hidden). */
+  gridLines: readonly GridLine[];
+  /** Snaps a time to the grid — absent while snapping is off. Holding Alt
+   *  during the gesture bypasses it. */
+  snapTime?: (timeSeconds: number) => number;
+  /** Bars lanes: set the bar under this time to this value (press and drag
+   *  across bars to paint). */
+  onPaintBar(timeSeconds: number, value: number): void;
 };
+
+/** Grid line colours by strength: subdivision, beat, bar. */
+const GRID_COLORS = ['#262626', '#303030', '#474747'] as const;
 
 const POINT_HIT_RADIUS_PX = 7;
 /** Backing-store cap: browser canvases fail SILENTLY past ~16k–32k device
@@ -47,15 +61,22 @@ export function CurveLane({
   curve,
   durationSec,
   timeScale,
+  laneHeight,
+  mode,
   valueRange,
   showWrapMismatch,
   selectedPointIndex,
   onSelectPoint,
   onAddPoint,
   onMovePoint,
+  gridLines,
+  snapTime,
+  onPaintBar,
 }: CurveLaneProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const dragPointIndexRef = useRef<number | null>(null);
+  const paintingRef = useRef(false);
+  const isBars = curve.display === 'bars';
 
   // Any structural change (delete mid-drag, external replace) invalidates
   // the dragged INDEX — cancel the drag instead of retargeting a neighbor
@@ -65,10 +86,10 @@ export function CurveLane({
   }, [curve.points.length]);
 
   function pinnedHandleY(value: number): number {
-    const rawY = valueToY(value, valueRange, LANE_HEIGHT_PX);
+    const rawY = valueToY(value, valueRange, laneHeight);
     return Math.min(
       Math.max(rawY, EDGE_PIN_MARGIN_PX),
-      LANE_HEIGHT_PX - EDGE_PIN_MARGIN_PX,
+      laneHeight - EDGE_PIN_MARGIN_PX,
     );
   }
 
@@ -90,9 +111,9 @@ export function CurveLane({
       ),
     );
     canvas.width = Math.round(cssWidth * devicePixelRatioValue);
-    canvas.height = Math.round(LANE_HEIGHT_PX * devicePixelRatioValue);
+    canvas.height = Math.round(laneHeight * devicePixelRatioValue);
     canvas.style.width = `${cssWidth}px`;
-    canvas.style.height = `${LANE_HEIGHT_PX}px`;
+    canvas.style.height = `${laneHeight}px`;
     context.setTransform(
       devicePixelRatioValue,
       0,
@@ -101,27 +122,73 @@ export function CurveLane({
       0,
       0,
     );
-    context.clearRect(0, 0, cssWidth, LANE_HEIGHT_PX);
+    context.clearRect(0, 0, cssWidth, laneHeight);
 
-    // Vertical grid at the ruler step.
-    const stepSeconds = rulerStepSeconds(timeScale);
-    context.strokeStyle = '#2e2e2e';
+    // The musical grid (bars strongest, then beats, then subdivisions).
     context.lineWidth = 1;
-    for (
-      let tickIndex = 1;
-      tickIndex * stepSeconds < durationSec;
-      tickIndex += 1
-    ) {
-      const x = Math.round(timeToPixel(tickIndex * stepSeconds, timeScale));
+    for (const line of gridLines) {
+      if (line.t <= 0 || line.t >= durationSec) continue;
+      const x = Math.round(timeToPixel(line.t, timeScale));
+      context.strokeStyle = GRID_COLORS[line.strength];
       context.beginPath();
       context.moveTo(x + 0.5, 0);
-      context.lineTo(x + 0.5, LANE_HEIGHT_PX);
+      context.lineTo(x + 0.5, laneHeight);
       context.stroke();
     }
 
-    if (curve.points.length === 0) {
+    // The lane's own horizontal grid (Q-F2 A), labelled with note names on a
+    // pitch grid wherever a label has room.
+    const valueGrid = curve.valueGrid;
+    if (valueGrid?.show === true) {
+      const lines = buildValueLines(
+        valueGrid,
+        valueRange.min,
+        valueRange.max,
+        laneHeight,
+      );
+      let lastLabelY = Infinity;
+      context.font = '10px system-ui, sans-serif';
+      context.textAlign = 'left';
+      context.textBaseline = 'bottom';
+      for (const line of lines) {
+        const y = Math.round(valueToY(line.v, valueRange, laneHeight));
+        context.strokeStyle = line.strength === 1 ? '#3b3651' : '#2a2833';
+        context.beginPath();
+        context.moveTo(0, y + 0.5);
+        context.lineTo(cssWidth, y + 0.5);
+        context.stroke();
+        if (line.label !== undefined && lastLabelY - y >= 12) {
+          context.fillStyle = line.strength === 1 ? '#9a8fd0' : '#6f6a86';
+          context.fillText(line.label, 4, y - 1);
+          lastLabelY = y;
+        }
+      }
+    }
+
+    if (isBars && curve.points.length > 0) {
+      // One bar per held segment, from the lane floor up to its value, with
+      // a bright top edge — the part you drag.
+      const floorY = laneHeight;
+      const points = curve.points;
+      for (let index = -1; index < points.length; index += 1) {
+        const start = index === -1 ? 0 : points[index].t;
+        const end =
+          index + 1 < points.length ? points[index + 1].t : durationSec;
+        if (end <= start) continue;
+        const value = points[Math.max(index, 0)].v;
+        const x0 = timeToPixel(start, timeScale);
+        const x1 = Math.min(timeToPixel(end, timeScale), cssWidth);
+        const width = Math.max(1, x1 - x0 - 1);
+        const topY = pinnedHandleY(value);
+        context.globalAlpha = 0.32;
+        context.fillStyle = curve.color;
+        context.fillRect(x0 + 0.5, topY, width, floorY - topY);
+        context.globalAlpha = 1;
+        context.fillRect(x0 + 0.5, topY - 1, width, 3);
+      }
+    } else if (curve.points.length === 0) {
       // Empty curve: dashed line at defaultValue.
-      const y = valueToY(curve.defaultValue, valueRange, LANE_HEIGHT_PX);
+      const y = valueToY(curve.defaultValue, valueRange, laneHeight);
       context.strokeStyle = curve.color;
       context.setLineDash([4, 4]);
       context.globalAlpha = 0.5;
@@ -139,7 +206,7 @@ export function CurveLane({
       context.beginPath();
       for (let x = 0; x <= cssWidth; x += 2) {
         const value = evaluateCurve(curve, pixelToTime(x, timeScale));
-        const y = valueToY(value, valueRange, LANE_HEIGHT_PX);
+        const y = valueToY(value, valueRange, laneHeight);
         if (x === 0) {
           context.moveTo(x, y);
         } else {
@@ -150,7 +217,7 @@ export function CurveLane({
 
       for (const [pointIndex, point] of curve.points.entries()) {
         const x = timeToPixel(point.t, timeScale);
-        const rawY = valueToY(point.v, valueRange, LANE_HEIGHT_PX);
+        const rawY = valueToY(point.v, valueRange, laneHeight);
         const y = pinnedHandleY(point.v);
         const isOffRange = y !== rawY;
         context.fillStyle = curve.color;
@@ -173,12 +240,12 @@ export function CurveLane({
     }
 
     // Row separator drawn in-canvas so header (border-box) and lane rows
-    // stay exactly LANE_HEIGHT_PX tall (review UI-5).
+    // stay exactly laneHeight tall (review UI-5).
     context.strokeStyle = '#383838';
     context.lineWidth = 1;
     context.beginPath();
-    context.moveTo(0, LANE_HEIGHT_PX - 0.5);
-    context.lineTo(cssWidth, LANE_HEIGHT_PX - 0.5);
+    context.moveTo(0, laneHeight - 0.5);
+    context.lineTo(cssWidth, laneHeight - 0.5);
     context.stroke();
 
     if (showWrapMismatch) {
@@ -187,6 +254,10 @@ export function CurveLane({
       context.textAlign = 'right';
       context.fillText('⚠ wrap', cssWidth - 6, 12);
     }
+    // `laneHeight` belongs here: it sizes the backing store and every y
+    // coordinate. Without it the canvas kept its previous height, which is why
+    // a fullscreen lane first stayed at the default size while the container
+    // around it grew.
   }, [
     curve,
     durationSec,
@@ -194,6 +265,9 @@ export function CurveLane({
     valueRange,
     selectedPointIndex,
     showWrapMismatch,
+    laneHeight,
+    gridLines,
+    isBars,
   ]);
 
   function pointerPosition(event: ReactPointerEvent<HTMLCanvasElement>): {
@@ -226,58 +300,104 @@ export function CurveLane({
     return bestIndex;
   }
 
-  function clampedValueAt(y: number): number {
-    const value = yToValue(y, valueRange, LANE_HEIGHT_PX);
-    return Math.min(Math.max(value, valueRange.min), valueRange.max);
+  /** The grid-snapped time, unless snapping is off or Alt is held. */
+  function snapped(
+    timeSeconds: number,
+    event: ReactPointerEvent<HTMLCanvasElement>,
+  ): number {
+    return snapTime === undefined || event.altKey
+      ? timeSeconds
+      : snapTime(timeSeconds);
+  }
+
+  /** The value under `y`, kept inside the view and — while the lane's grid
+   *  snaps, unless Alt is held — pulled onto the nearest line. */
+  function clampedValueAt(
+    y: number,
+    event?: ReactPointerEvent<HTMLCanvasElement>,
+  ): number {
+    const raw = yToValue(y, valueRange, laneHeight);
+    const value = Math.min(Math.max(raw, valueRange.min), valueRange.max);
+    const grid = curve.valueGrid;
+    if (grid === undefined || !grid.snap || event?.altKey === true)
+      return value;
+    return snapValue(value, grid);
   }
 
   return (
-    <div className="rbnt-tl-lane" style={{ height: LANE_HEIGHT_PX }}>
+    <div
+      className="rbnt:relative rbnt:box-border"
+      style={{ height: laneHeight }}
+    >
       <canvas
         ref={canvasRef}
-        className="rbnt-tl-lane-canvas"
+        className={
+          mode === 'pan'
+            ? 'rbnt:block rbnt:cursor-grab rbnt:touch-none rbnt:bg-tl-lane-bg rbnt:active:cursor-grabbing'
+            : 'rbnt:block rbnt:cursor-crosshair rbnt:touch-none rbnt:bg-tl-lane-bg'
+        }
         role="img"
-        aria-label={`Curve lane: ${curve.name || '(unnamed)'} — ${curve.points.length} points`}
+        aria-label={
+          isBars
+            ? `Bars lane: ${curve.name || '(unnamed)'} — ${curve.points.length} bars`
+            : `Curve lane: ${curve.name || '(unnamed)'} — ${curve.points.length} points`
+        }
         onPointerDown={(event) => {
-          if (event.button !== 0) {
+          // In pan mode the lane owns no gesture: the event bubbles to the
+          // scroll container, which drags the view through time.
+          if (mode === 'pan' || event.button !== 0) {
             return;
           }
           const { x, y } = pointerPosition(event);
+          if (isBars) {
+            paintingRef.current = true;
+            onPaintBar(pixelToTime(x, timeScale), clampedValueAt(y, event));
+            event.currentTarget.setPointerCapture(event.pointerId);
+            return;
+          }
           const hitIndex = hitTestPoint(x, y);
           if (hitIndex !== null) {
             dragPointIndexRef.current = hitIndex;
             onSelectPoint(hitIndex);
           } else {
             const timeSeconds = Math.min(
-              Math.max(pixelToTime(x, timeScale), 0),
+              Math.max(snapped(pixelToTime(x, timeScale), event), 0),
               durationSec,
             );
             dragPointIndexRef.current = onAddPoint(
               timeSeconds,
-              clampedValueAt(y),
+              clampedValueAt(y, event),
             );
           }
           event.currentTarget.setPointerCapture(event.pointerId);
         }}
         onPointerMove={(event) => {
+          if (mode === 'pan') return;
+          if (paintingRef.current) {
+            const { x, y } = pointerPosition(event);
+            onPaintBar(pixelToTime(x, timeScale), clampedValueAt(y, event));
+            return;
+          }
           if (dragPointIndexRef.current === null) {
             return;
           }
           const { x, y } = pointerPosition(event);
           onMovePoint(
             dragPointIndexRef.current,
-            pixelToTime(x, timeScale),
-            clampedValueAt(y),
+            snapped(pixelToTime(x, timeScale), event),
+            clampedValueAt(y, event),
           );
         }}
         onPointerUp={(event) => {
           dragPointIndexRef.current = null;
+          paintingRef.current = false;
           if (event.currentTarget.hasPointerCapture(event.pointerId)) {
             event.currentTarget.releasePointerCapture(event.pointerId);
           }
         }}
         onPointerCancel={() => {
           dragPointIndexRef.current = null;
+          paintingRef.current = false;
         }}
       />
     </div>

@@ -50,12 +50,22 @@ describe('makeTimelineCurveNodeType', () => {
         dataType: 'curveRef',
         allowInput: true,
         maxConnections: 0,
+        description: expect.stringContaining('curve'),
       },
     ]);
     expect(nodeType.outputs).toEqual([
-      { name: 'Signal', dataType: 'signal' },
-      { name: 'Value', dataType: 'number' },
+      {
+        name: 'Signal',
+        dataType: 'signal',
+        description: expect.stringContaining('live'),
+      },
+      {
+        name: 'Value',
+        dataType: 'number',
+        description: expect.stringContaining('fixed'),
+      },
     ]);
+    expect(nodeType.description).toMatch(/timeline/);
     const renamed = makeTimelineCurveNodeType({
       signalDataTypeId: 's',
       numberDataTypeId: 'n',
@@ -65,5 +75,13 @@ describe('makeTimelineCurveNodeType', () => {
     });
     expect(renamed.name).toBe('Curve Out');
     expect(renamed.headerColor).toBe('#123456');
+    expect(
+      makeTimelineCurveNodeType({
+        signalDataTypeId: 's',
+        numberDataTypeId: 'n',
+        curveRefDataTypeId: 'c',
+        description: 'Custom docs',
+      }).description,
+    ).toBe('Custom docs');
   });
 });

@@ -20,7 +20,21 @@ export type MakeTimelineCurveNodeTypeOptions<
   curveRefDataTypeId: CurveRefDataTypeId;
   name?: string;
   headerColor?: string;
+  /** In-app docs shown behind the node's ⓘ (the host's
+   *  `TypeOfNode.description`); a sensible default is provided. */
+  description?: string;
 };
+
+/** Default in-app docs (host `description` fields, shown behind an ⓘ). */
+const CURVE_NODE_DOCS = {
+  node: 'Plays back a curve you draw on the timeline, so a setting can rise and fall over time as the music plays.',
+  curve:
+    'Which timeline curve to follow. Pick one, or make a new one, from the list.',
+  signal:
+    "The curve's value, changing live as the timeline plays. Connect it to a yellow socket to move that setting.",
+  value:
+    "The curve's value at the moment the graph starts. It stays fixed while it plays.",
+} as const;
 
 export function makeTimelineCurveNodeType<
   SignalDataTypeId extends string,
@@ -36,6 +50,7 @@ export function makeTimelineCurveNodeType<
   return {
     name: options.name ?? 'Timeline Curve',
     headerColor: options.headerColor ?? '#b45309',
+    description: options.description ?? CURVE_NODE_DOCS.node,
     inputs: [
       {
         name: 'Curve',
@@ -44,11 +59,20 @@ export function makeTimelineCurveNodeType<
         // Picker-only: no producer emits curve references, so edges into
         // this handle are disabled outright.
         maxConnections: 0,
+        description: CURVE_NODE_DOCS.curve,
       },
     ],
     outputs: [
-      { name: 'Signal', dataType: options.signalDataTypeId },
-      { name: 'Value', dataType: options.numberDataTypeId },
+      {
+        name: 'Signal',
+        dataType: options.signalDataTypeId,
+        description: CURVE_NODE_DOCS.signal,
+      },
+      {
+        name: 'Value',
+        dataType: options.numberDataTypeId,
+        description: CURVE_NODE_DOCS.value,
+      },
     ],
   };
 }

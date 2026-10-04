@@ -1,6 +1,6 @@
 {
   "name": "@theclearsky/react-blender-nodes-timeline",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "type": "module",
   "author": "Deepak Prasad <TheClearSky@github.com>",
   "license": "AGPL-3.0-only",
@@ -43,13 +43,9 @@
     "react-dom": "^19.1.1",
     "zod": "^4.1.5"
   },
-  "peerDependenciesMeta": {
-    "@theclearsky/react-blender-nodes": {
-      "optional": true
-    }
-  },
   "devDependencies": {
-    "@theclearsky/react-blender-nodes": "^0.0.14",
+    "@tailwindcss/vite": "^4.3.3",
+    "@theclearsky/react-blender-nodes": "^0.0.15",
     "@types/node": "^24.3.1",
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",
@@ -57,6 +53,7 @@
     "prettier": "^3.6.2",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "tailwindcss": "^4.3.3",
     "typescript": "~5.9.2",
     "vite": "^7.1.4",
     "vite-plugin-dts": "^4.5.4",

@@ -1,4 +1,11 @@
-import type { ChangeEvent } from 'react';
+import {
+  Button,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@theclearsky/react-blender-nodes';
 import {
   sideInterps,
   type CurvePoint,
@@ -16,6 +23,53 @@ export type PointEditorPanelProps = {
   onDeletePoint(): void;
 };
 
+/**
+ * Per-side interpolation pickers — the HOST's `Select`, the same widget as a
+ * node's enum input, instead of the native `<select>` the plugin used to ship.
+ *
+ * After a choice, focus returns to the TIMELINE ROOT (not `<body>` — a bare
+ * blur would silently disable the timeline's Delete/Escape shortcuts and let
+ * the graph's delete keys fire again; review UI-17).
+ */
+function InterpSelect({
+  side,
+  value,
+  onSetInterp,
+}: {
+  side: 'left' | 'right';
+  value: SideInterp;
+  onSetInterp(side: 'left' | 'right', interp: SideInterp): void;
+}) {
+  return (
+    <Select
+      value={value}
+      onValueChange={(nextValue) => {
+        const nextInterp = sideInterps.find(
+          (candidate) => candidate === nextValue,
+        );
+        if (nextInterp !== undefined) onSetInterp(side, nextInterp);
+        const timelineRoot = window.document.querySelector('.rbnt-timeline');
+        if (timelineRoot instanceof HTMLElement) timelineRoot.focus();
+      }}
+      size="compact"
+    >
+      <SelectTrigger
+        className="rbnt:h-7 rbnt:w-full rbnt:min-w-0 rbnt:px-2 rbnt:text-[12px] rbnt:leading-4"
+        aria-label={`${side === 'left' ? 'Left' : 'Right'} interpolation`}
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {sideInterps.map((interp) => (
+          <SelectItem key={interp} value={interp}>
+            {interp}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 export function PointEditorPanel({
   curveName,
   pointIndex,
@@ -25,86 +79,49 @@ export function PointEditorPanel({
   onSetInterp,
   onDeletePoint,
 }: PointEditorPanelProps) {
-  function handleInterpChange(side: 'left' | 'right') {
-    return (event: ChangeEvent<HTMLSelectElement>) => {
-      const nextInterp = sideInterps.find(
-        (candidate) => candidate === event.target.value,
-      );
-      if (nextInterp !== undefined) {
-        onSetInterp(side, nextInterp);
-      }
-      // Return focus to the TIMELINE ROOT (not <body> — a bare blur() would
-      // silently disable the timeline's Delete/Escape shortcuts, and let
-      // graph delete keys fire again; review UI-17).
-      const timelineRoot = event.currentTarget.closest('.rbnt-timeline');
-      if (timelineRoot instanceof HTMLElement) {
-        timelineRoot.focus();
-      } else {
-        event.currentTarget.blur();
-      }
-    };
-  }
-
   return (
-    <div className="rbnt-tl-point-panel">
-      <span className="rbnt-tl-point-label">
+    <div className="rbnt:flex rbnt:flex-wrap rbnt:items-center rbnt:gap-1.5 rbnt:border-b rbnt:border-secondary-dark-gray rbnt:bg-secondary-black rbnt:px-2 rbnt:py-1.5">
+      <span className="rbnt:min-w-[110px] rbnt:text-[12px] rbnt:text-tl-dim">
         {curveName || '(unnamed)'} · point {pointIndex + 1}
       </span>
-      <label className="rbnt-tl-field">
-        t
-        <NumberField
-          value={point.t}
-          onCommit={onSetTime}
-          ariaLabel="Point time in seconds"
-        />
-      </label>
-      <label className="rbnt-tl-field">
-        v
-        <NumberField
-          value={point.v}
-          onCommit={onSetValue}
-          ariaLabel="Point value"
-        />
-      </label>
-      <label className="rbnt-tl-field">
+      <NumberField
+        value={point.t}
+        onCommit={onSetTime}
+        label="t s"
+        ariaLabel="Point time in seconds"
+      />
+      <NumberField
+        value={point.v}
+        onCommit={onSetValue}
+        label="v"
+        ariaLabel="Point value"
+      />
+      <span className="rbnt:inline-flex rbnt:items-center rbnt:gap-1 rbnt:text-tl-dim">
         left
-        <select
-          className="rbnt-tl-select"
+        <InterpSelect
+          side="left"
           value={point.leftInterp}
-          aria-label="Left interpolation"
-          onChange={handleInterpChange('left')}
-        >
-          {sideInterps.map((interp) => (
-            <option key={interp} value={interp}>
-              {interp}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="rbnt-tl-field">
+          onSetInterp={onSetInterp}
+        />
+      </span>
+      <span className="rbnt:inline-flex rbnt:items-center rbnt:gap-1 rbnt:text-tl-dim">
         right
-        <select
-          className="rbnt-tl-select"
+        <InterpSelect
+          side="right"
           value={point.rightInterp}
-          aria-label="Right interpolation"
-          onChange={handleInterpChange('right')}
-        >
-          {sideInterps.map((interp) => (
-            <option key={interp} value={interp}>
-              {interp}
-            </option>
-          ))}
-        </select>
-      </label>
-      <button
+          onSetInterp={onSetInterp}
+        />
+      </span>
+      <Button
         type="button"
-        className="rbnt-tl-button rbnt-tl-button-small rbnt-tl-danger"
+        size="small"
+        className="rbnt:rounded rbnt:border rbnt:border-tl-danger-border rbnt:bg-primary-dark-gray rbnt:px-1.5 rbnt:py-px rbnt:text-[12px] rbnt:leading-[1.4] rbnt:text-tl-danger rbnt:enabled:hover:bg-tl-danger-bg"
         aria-label="Delete point"
         title="Delete point"
         onClick={onDeletePoint}
       >
         delete point
-      </button>
+      </Button>
     </div>
   );
 }
