@@ -1,4 +1,11 @@
 import { useContext, useRef, useSyncExternalStore } from 'react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@theclearsky/react-blender-nodes';
 import type { TimelineDocument } from '../model/types';
 import { TimelineContext } from '../store/TimelineContext';
 import type { TimelineDocumentStore } from '../store/documentStore';
@@ -6,10 +13,9 @@ import { makeTimelineCurveRef, parseTimelineCurveRef } from './curveRef';
 
 /**
  * The host's InputComponentProps contract, declared STRUCTURALLY so the
- * rolled d.ts never imports the host package — the host peer is optional
- * and a hard d.ts import would break host-less consumers' type-checking
- * (review UI-8). A compile-time assignability check against the real host
- * type lives in src/__tests__/node/curveNode.test.ts.
+ * rolled d.ts never imports the host package (review UI-8). A compile-time
+ * assignability check against the real host type lives in
+ * src/__tests__/node/curveNode.test.ts.
  */
 export type TimelineCurvePickerProps = {
   value: unknown;
@@ -39,11 +45,15 @@ function useDocumentFromStore(store: TimelineDocumentStore | null) {
 /**
  * The curve picker rendered INSIDE a Timeline Curve node by the host (plan
  * §7): registered in the app's InputComponentRegistry under the curveRef
- * dataType. Requires a <TimelineProvider> above the graph — without one it
- * degrades to a disabled select with a console error instead of unmounting
- * the whole application from inside the host's render tree (review UI-13).
- * A reference to a deleted curve shows a red "missing" state (§8) — running
- * stays safe (the impl emits a constant-0 driver).
+ * dataType. Built on the host's `Select` — the same widget as a node's enum
+ * input — with `renderInline` so the dropdown inherits the ReactFlow canvas
+ * transform instead of being portaled to the body.
+ *
+ * Requires a <TimelineProvider> above the graph — without one it degrades to a
+ * disabled picker with a console error instead of unmounting the whole
+ * application from inside the host's render tree (review UI-13). A reference to
+ * a deleted curve keeps a red "missing" row (§8) — running stays safe (the impl
+ * emits a constant-0 driver).
  */
 export function TimelineCurvePicker({
   value,
@@ -64,31 +74,38 @@ export function TimelineCurvePicker({
     !document.curves.some((curve) => curve.id === selectedCurveId);
 
   return (
-    <select
-      className="rbnt-tl-curve-picker"
-      data-missing={isMissing ? 'true' : undefined}
-      disabled={store === null}
+    <Select
       value={selectedCurveId ?? ''}
-      aria-label="Timeline curve"
-      onChange={(event) => {
-        const curveId = event.target.value;
-        onChange(curveId === '' ? undefined : makeTimelineCurveRef(curveId));
-        // Give focus back immediately — in the sound app a focused select
-        // swallows the note keys (the demo-picker incident).
-        event.currentTarget.blur();
-      }}
+      disabled={store === null}
+      allowDeselect
+      renderInline
+      onValueChange={(curveId) =>
+        onChange(
+          curveId === undefined || curveId === ''
+            ? undefined
+            : makeTimelineCurveRef(curveId),
+        )
+      }
     >
-      <option value="">— pick curve —</option>
-      {isMissing && selectedCurveId !== null && (
-        <option value={selectedCurveId}>
-          ⚠ missing reference ({selectedCurveId})
-        </option>
-      )}
-      {document.curves.map((curve) => (
-        <option key={curve.id} value={curve.id}>
-          {curve.name || '(unnamed)'}
-        </option>
-      ))}
-    </select>
+      <SelectTrigger
+        className="rbnt:max-w-full rbnt:data-[missing=true]:border-tl-danger rbnt:data-[missing=true]:text-tl-danger"
+        data-missing={isMissing ? 'true' : undefined}
+        aria-label="Timeline curve"
+      >
+        <SelectValue placeholder="— pick curve —" />
+      </SelectTrigger>
+      <SelectContent>
+        {isMissing && selectedCurveId !== null && (
+          <SelectItem value={selectedCurveId}>
+            ⚠ missing reference ({selectedCurveId})
+          </SelectItem>
+        )}
+        {document.curves.map((curve) => (
+          <SelectItem key={curve.id} value={curve.id}>
+            {curve.name || '(unnamed)'}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

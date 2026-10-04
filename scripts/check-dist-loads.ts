@@ -199,6 +199,9 @@ const EXPECTED_EXPORTS = [
   'makeTimelineCurveNodeType',
   'TimelineCurvePicker',
   'demoTimelineDocument',
+  'collectEventTimes',
+  'findTempoCandidates',
+  'findValueGridCandidates',
 ] as const;
 const SENTINEL_EXPECTED_TYPEOF: Record<
   (typeof EXPECTED_EXPORTS)[number],
@@ -227,6 +230,9 @@ const SENTINEL_EXPECTED_TYPEOF: Record<
   makeTimelineCurveNodeType: 'function',
   TimelineCurvePicker: 'function',
   demoTimelineDocument: 'object',
+  collectEventTimes: 'function',
+  findTempoCandidates: 'function',
+  findValueGridCandidates: 'function',
 };
 
 function runProbe(relativePath: string, kind: 'cjs' | 'es'): ProbeVerdict {

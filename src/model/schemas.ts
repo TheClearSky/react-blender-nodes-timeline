@@ -9,6 +9,10 @@
  */
 import { z } from 'zod';
 import {
+  curveDisplays,
+  MAX_BEATS_PER_BAR,
+  MAX_BPM,
+  MIN_BPM,
   MIN_POINT_DELTA_SECONDS,
   sideInterps,
   type TimelineDocument,
@@ -35,6 +39,24 @@ export const timelineCurveSchema = z
       .regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, 'must be a hex color'),
     defaultValue: z.number().finite(),
     points: z.array(curvePointSchema),
+    display: z.enum(curveDisplays).optional(),
+    valueGrid: z
+      .discriminatedUnion('kind', [
+        z.object({
+          kind: z.literal('linear'),
+          step: z.number().finite().positive(),
+          origin: z.number().finite(),
+          show: z.boolean(),
+          snap: z.boolean(),
+        }),
+        z.object({
+          kind: z.literal('pitch'),
+          a4: z.number().finite().min(200).max(900),
+          show: z.boolean(),
+          snap: z.boolean(),
+        }),
+      ])
+      .optional(),
   })
   .superRefine((curve, ctx) => {
     for (let index = 1; index < curve.points.length; index += 1) {
@@ -60,6 +82,15 @@ export const timelineDocumentSchema = z
     durationSec: z.number().finite().min(0.01).max(3600),
     loop: z.boolean(),
     curves: z.array(timelineCurveSchema),
+    // Optional: every document written before tempo existed stays valid.
+    tempo: z
+      .object({
+        bpm: z.number().finite().min(MIN_BPM).max(MAX_BPM),
+        beatsPerBar: z.number().int().min(1).max(MAX_BEATS_PER_BAR),
+        offsetSec: z.number().finite().min(0).max(3600).optional(),
+      })
+      .optional(),
+    lockDuration: z.boolean().optional(),
   })
   .superRefine((document, ctx) => {
     const seenCurveIds = new Set<string>();

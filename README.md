@@ -38,7 +38,7 @@ output).
              └───────────────────┬──────────────────────────┘
                                  ▼
      ┌────────────────────────────────────────────────────────────┐
-     │  react-blender-nodes-sound  ·  AGPL-3.0  ·  app            │
+     │  nodestra  ·  AGPL-3.0  ·  app                             │
      │                  T H E   A P P L I C A T I O N             │
      ├────────────────────────────────────────────────────────────┤
      │  Here the nodes ARE the audio graph (Tone.js / Web Audio): │

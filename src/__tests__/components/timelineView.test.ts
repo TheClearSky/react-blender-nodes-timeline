@@ -7,7 +7,6 @@ import {
   autoValueRange,
   clampTimeScale,
   fitTimeScale,
-  rulerStepSeconds,
   valueToY,
   yToValue,
 } from '../../components/CurveTimeline/timelineView';
@@ -24,12 +23,6 @@ describe('time scale', () => {
     expect(fitTimeScale(800, 8)).toBe(100);
     expect(fitTimeScale(800, 0.1)).toBe(2000);
     expect(fitTimeScale(0, 8)).toBe(10);
-  });
-
-  it('ruler steps keep labels ≥ ~70 px apart', () => {
-    expect(rulerStepSeconds(80)).toBe(1);
-    expect(rulerStepSeconds(2000)).toBe(0.05);
-    expect(rulerStepSeconds(10)).toBe(10);
   });
 });
 
